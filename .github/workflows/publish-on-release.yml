@@ -38,6 +38,9 @@ jobs:
             
             Write-Host "=== Publishing $Platform ==="
             
+            if (Test-Path "bin\Release") { Remove-Item -Recurse -Force "bin\Release" }
+            New-Item -ItemType Directory -Force -Path "bin\Release" | Out-Null
+            
             msbuild FMP7CLI.csproj `
               /p:Configuration=Release `
               /p:Platform=$Platform `
@@ -49,21 +52,24 @@ jobs:
               exit 1
             }
             
-            $outputFiles = Get-ChildItem -Path "bin\Release\" -File
+            $outputFiles = @(Get-ChildItem -Path "bin\Release\" -File)
             if ($outputFiles.Count -eq 0) {
               Write-Host "No output files for $Platform"
               exit 1
             }
             
             Write-Host "--- Output files ($Platform) ---"
-            $outputFiles | ForEach-Object { Write-Host $_.FullName }
+            $outputFiles | ForEach-Object { Write-Host $_.Name }
             
-            $exeFile = Get-ChildItem -Path "bin\Release\*.exe" | Select-Object -First 1
-            if ($exeFile) {
-              $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
-              Compress-Archive -Path $exeFile.FullName -DestinationPath $zipPath -Force
-              Write-Host "Created: $zipPath"
-            }
+            $tempFolder = "temp_${Platform}"
+            if (Test-Path $tempFolder) { Remove-Item -Recurse -Force $tempFolder }
+            Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse
+            
+            $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
+            Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -Force
+            Write-Host "Created: $zipPath"
+            
+            Remove-Item -Recurse -Force $tempFolder
           }
           
           Publish-Runtime "x64"
