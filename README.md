@@ -1,0 +1,22 @@
+﻿# FMP7CLI
+<div align="center">
+  <sub>A simple command line interface for FMP7</sub>
+</div>
+
+## 概要 - Overview
+<sub>FMP7CLI is a simple command line interface for FMP7.</sub>  
+FMP7CLI は FMP7 のコマンドラインインターフェースです。  
+<sub>It allows simple FMP7 operations.</sub>  
+簡易的なFMP7の操作が可能です。  
+
+## 使い方 - Usage
+<sub>Please refer to the --help option.</sub>  
+--help オプションを参照してください。  
+
+## ライセンス - License
+<sub>This software and its code are licensed under the MIT License.</sub>  
+本ソフトウェア、及びコードはMIT License としてライセンスされています。  
+
+<sub>And this software uses the following components:</sub>
+また、下記のコンポーネントを使用/同梱しています。
+- [FMP7 SDK for .NET](https://github.com/aosoft/FMP7ApiCLR) (zlib/libpng License)
