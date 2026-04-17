@@ -21,11 +21,6 @@ jobs:
       - name: Setup NuGet
         uses: nuget/setup-nuget@v2
 
-      - name: Install ILMerge
-        shell: pwsh
-        run: |
-          nuget install ILMerge -OutputDirectory tools
-
       - name: Restore NuGet packages
         run: nuget restore FMP7CLI.sln
 
@@ -43,9 +38,11 @@ jobs:
             
             Write-Host "=== Publishing $Platform ==="
             
+            # クリーンアップ
             if (Test-Path "bin\Release") { Remove-Item -Recurse -Force "bin\Release" }
             New-Item -ItemType Directory -Force -Path "bin\Release" | Out-Null
             
+            # ビルド
             msbuild FMP7CLI.csproj `
               /p:Configuration=Release `
               /p:Platform=$Platform `
@@ -57,58 +54,31 @@ jobs:
               exit 1
             }
             
-            $exeFile = Get-ChildItem -Path "bin\Release\FMP7CLI.exe" -File
-            if (-not $exeFile) {
-              Write-Host "No exe file found for $Platform"
+            # 出力ファイルを確認
+            $outputFiles = @(Get-ChildItem -Path "bin\Release\" -File)
+            if ($outputFiles.Count -eq 0) {
+              Write-Host "No output files for $Platform"
               exit 1
             }
             
-            Write-Host "--- Output files before merge ($Platform) ---"
-            Get-ChildItem -Path "bin\Release\" -File | ForEach-Object { Write-Host $_.Name }
+            Write-Host "--- Output files ($Platform) ---"
+            $outputFiles | ForEach-Object { Write-Host $_.Name }
             
-            $ilmergePath = Get-ChildItem -Path "tools\ILMerge*\tools\ILMerge.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            # 一時フォルダを作成
+            $tempFolder = "temp_${Platform}"
+            if (Test-Path $tempFolder) { Remove-Item -Recurse -Force $tempFolder }
+            New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
             
-            if ($ilmergePath) {
-              Write-Host "Found ILMerge at: $($ilmergePath.FullName)"
-              
-              $dllFiles = Get-ChildItem -Path "bin\Release\*.dll" -File | 
-                Where-Object { $_.Name -notmatch "\.resources\.dll$" } | 
-                ForEach-Object { $_.FullName }
-              
-              if ($dllFiles.Count -gt 0) {
-                Write-Host "Merging DLLs: $($dllFiles.Count) files"
-                
-                $mergedExe = "bin\Release\FMP7CLI_merged.exe"
-                
-                & $ilmergePath.FullName /out:$mergedExe $exeFile.FullName @dllFiles
-                
-                if ($LASTEXITCODE -eq 0) {
-                  Write-Host "ILMerge succeeded"
-                  Remove-Item -Path $exeFile.FullName
-                  Rename-Item -Path $mergedExe -NewName "FMP7CLI.exe" -Force
-                  
-                  $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
-                  Compress-Archive -Path "bin\Release\FMP7CLI.exe" -DestinationPath $zipPath -Force
-                  Write-Host "Created: $zipPath"
-                } else {
-                  Write-Host "ILMerge failed with exit code: $LASTEXITCODE"
-                  exit 1
-                }
-              } else {
-                Write-Host "No DLLs to merge, using exe as is"
-                $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
-                Compress-Archive -Path "bin\Release\FMP7CLI.exe" -DestinationPath $zipPath -Force
-              }
-            } else {
-              Write-Host "ILMerge not found, using exe with dependencies"
-              $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
-              $tempFolder = "temp_${Platform}"
-              if (Test-Path $tempFolder) { Remove-Item -Recurse -Force $tempFolder }
-              New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
-              Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse -Force
-              Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -Force
-              Remove-Item -Recurse -Force $tempFolder
-            }
+            # bin\Release\*をコピー
+            Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse -Force
+            
+            # Zipファイルを作成
+            $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
+            Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -Force
+            Write-Host "Created: $zipPath"
+            
+            # クリーンアップ
+            Remove-Item -Recurse -Force $tempFolder
           }
           
           Publish-Runtime "x64"
