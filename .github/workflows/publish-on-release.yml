@@ -18,19 +18,56 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore FMP7CLI.sln
+
       - name: Prepare publish directory
+        shell: pwsh
         run: |
           if (Test-Path publish) { Remove-Item -Recurse -Force publish }
-          New-Item -ItemType Directory -Force -Path publish
+          New-Item -ItemType Directory -Force -Path publish | Out-Null
 
       - name: Build and Package
         shell: pwsh
         run: |
-          msbuild FMP7CLI.csproj /p:Configuration=Release /p:Platform=x64 /p:OutputPath=..\bin\x64\
-          Compress-Archive -Path bin\x64\* -DestinationPath "publish\FMP7CLI_${{ github.event.release.tag_name }}_win-x64.zip"
+          function Publish-Runtime {
+            param([string]$Platform)
+            
+            Write-Host "=== Publishing $Platform ==="
+            
+            msbuild FMP7CLI.csproj `
+              /p:Configuration=Release `
+              /p:Platform=$Platform `
+              /p:OutputPath="bin\Release\" `
+              /p:DebugType=None
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Build failed for $Platform"
+              exit 1
+            }
+            
+            $outputFiles = Get-ChildItem -Path "bin\Release\" -File
+            if ($outputFiles.Count -eq 0) {
+              Write-Host "No output files for $Platform"
+              exit 1
+            }
+            
+            Write-Host "--- Output files ($Platform) ---"
+            $outputFiles | ForEach-Object { Write-Host $_.FullName }
+            
+            $exeFile = Get-ChildItem -Path "bin\Release\*.exe" | Select-Object -First 1
+            if ($exeFile) {
+              $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
+              Compress-Archive -Path $exeFile.FullName -DestinationPath $zipPath -Force
+              Write-Host "Created: $zipPath"
+            }
+          }
           
-          msbuild FMP7CLI.csproj /p:Configuration=Release /p:Platform=x86 /p:OutputPath=..\bin\x86\
-          Compress-Archive -Path bin\x86\* -DestinationPath "publish\FMP7CLI_${{ github.event.release.tag_name }}_win-x86.zip"
+          Publish-Runtime "x64"
+          Publish-Runtime "x86"
 
       - name: Upload assets to Release
         uses: softprops/action-gh-release@v2
