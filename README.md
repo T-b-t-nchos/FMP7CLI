@@ -1,5 +1,5 @@
 ﻿# FMP7CLI
-<sub>A simple command line interface for FMP7</sub>
+A simple command line interface for FMP7
 
 ## 概要 - Overview
 <sub>FMP7CLI is a simple command line interface for FMP7.</sub>  
