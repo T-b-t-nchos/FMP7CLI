@@ -1,0 +1,38 @@
+﻿name: 💡 | Publish FMP7CLI
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Prepare publish directory
+        run: |
+          if (Test-Path publish) { Remove-Item -Recurse -Force publish }
+          New-Item -ItemType Directory -Force -Path publish
+
+      - name: Build and Package
+        shell: pwsh
+        run: |
+          msbuild FMP7CLI.csproj /p:Configuration=Release /p:Platform=x64 /p:OutputPath=..\bin\x64\
+          Compress-Archive -Path bin\x64\* -DestinationPath "publish\FMP7CLI_${{ github.event.release.tag_name }}_win-x64.zip"
+          
+          msbuild FMP7CLI.csproj /p:Configuration=Release /p:Platform=x86 /p:OutputPath=..\bin\x86\
+          Compress-Archive -Path bin\x86\* -DestinationPath "publish\FMP7CLI_${{ github.event.release.tag_name }}_win-x86.zip"
+
+      - name: Upload assets to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: publish/*
