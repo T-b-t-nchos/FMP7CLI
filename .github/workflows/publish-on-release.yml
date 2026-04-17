@@ -66,33 +66,49 @@ jobs:
             Write-Host "--- Output files before merge ($Platform) ---"
             Get-ChildItem -Path "bin\Release\" -File | ForEach-Object { Write-Host $_.Name }
             
-            $ilmergePath = Get-ChildItem -Path "tools\ILMerge*\tools\ILMerge.exe" | Select-Object -First 1
-            $dllFiles = Get-ChildItem -Path "bin\Release\*.dll" -File | ForEach-Object { $_.FullName }
+            $ilmergePath = Get-ChildItem -Path "tools\ILMerge*\tools\ILMerge.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
             
-            if ($dllFiles.Count -gt 0) {
-              $mergedExe = "bin\Release\FMP7CLI_merged.exe"
-              $ilmergeArgs = @(
-                "/out:$mergedExe",
-                $exeFile.FullName
-              )
-              $ilmergeArgs += $dllFiles
+            if ($ilmergePath) {
+              Write-Host "Found ILMerge at: $($ilmergePath.FullName)"
               
-              Write-Host "Running ILMerge..."
-              & $ilmergePath.FullName $ilmergeArgs
+              $dllFiles = Get-ChildItem -Path "bin\Release\*.dll" -File | 
+                Where-Object { $_.Name -notmatch "\.resources\.dll$" } | 
+                ForEach-Object { $_.FullName }
               
-              if ($LASTEXITCODE -eq 0) {
-                Write-Host "ILMerge succeeded"
-                Remove-Item -Path $exeFile.FullName
-                Rename-Item -Path $mergedExe -NewName "FMP7CLI.exe"
+              if ($dllFiles.Count -gt 0) {
+                Write-Host "Merging DLLs: $($dllFiles.Count) files"
+                
+                $mergedExe = "bin\Release\FMP7CLI_merged.exe"
+                
+                & $ilmergePath.FullName /out:$mergedExe $exeFile.FullName @dllFiles
+                
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "ILMerge succeeded"
+                  Remove-Item -Path $exeFile.FullName
+                  Rename-Item -Path $mergedExe -NewName "FMP7CLI.exe" -Force
+                  
+                  $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
+                  Compress-Archive -Path "bin\Release\FMP7CLI.exe" -DestinationPath $zipPath -Force
+                  Write-Host "Created: $zipPath"
+                } else {
+                  Write-Host "ILMerge failed with exit code: $LASTEXITCODE"
+                  exit 1
+                }
               } else {
-                Write-Host "ILMerge failed"
-                exit 1
+                Write-Host "No DLLs to merge, using exe as is"
+                $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
+                Compress-Archive -Path "bin\Release\FMP7CLI.exe" -DestinationPath $zipPath -Force
               }
+            } else {
+              Write-Host "ILMerge not found, using exe with dependencies"
+              $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
+              $tempFolder = "temp_${Platform}"
+              if (Test-Path $tempFolder) { Remove-Item -Recurse -Force $tempFolder }
+              New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
+              Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse -Force
+              Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -Force
+              Remove-Item -Recurse -Force $tempFolder
             }
-            
-            $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
-            Compress-Archive -Path "bin\Release\FMP7CLI.exe" -DestinationPath $zipPath -Force
-            Write-Host "Created: $zipPath"
           }
           
           Publish-Runtime "x64"
