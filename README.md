@@ -15,7 +15,7 @@ FMP7CLI は FMP7 のコマンドラインインターフェースです。
 - .NET Framework 4.8.1 runtime
 
 > [!TIP]
-> ・<sub>You need to start FMP7 before using FMP7CLI.</sub>
+> ・<sub>You need to start FMP7 before using FMP7CLI.</sub>  
 > ・FMP7 が起動している必要があります。
 
 <sub>Please refer to the --help option.</sub>  
