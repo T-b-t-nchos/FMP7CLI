@@ -63,7 +63,9 @@ jobs:
             
             $tempFolder = "temp_${Platform}"
             if (Test-Path $tempFolder) { Remove-Item -Recurse -Force $tempFolder }
-            Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse
+            New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
+
+            Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse -Force
             
             $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
             Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -Force
