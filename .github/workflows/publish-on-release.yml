@@ -45,7 +45,7 @@ jobs:
           RP () {
             echo "=== Publishing $1 ==="
 
-            pushd FMP7CLI >/dev/null
+            pushd . >/dev/null
 
             rm -rf bin
             mkdir -p bin
@@ -77,7 +77,7 @@ jobs:
 
             (
               cd bin
-              zip -r "../../publish/FMP7CLI_${{ github.event.release.tag_name }}_${1}.zip" .
+              zip -r "../publish/FMP7CLI_${{ github.event.release.tag_name }}_${1}.zip" .
             )
 
             popd >/dev/null
