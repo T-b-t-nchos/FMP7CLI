@@ -13,8 +13,8 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="FMP7Api.CLR2">
-      <HintPath>.\FMP7ApiCLR\FMP7Api.CLR2.dll</HintPath>
+    <Reference Include="FMP7Api.CLR4">
+      <HintPath>FMP7ApiCLR\FMP7Api.CLR4.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
