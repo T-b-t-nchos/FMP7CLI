@@ -30,7 +30,7 @@ jobs:
           fi
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore /p:EnableWindowsTargeting=true
 
       - name: Prepare publish directory
         run: |
@@ -61,6 +61,7 @@ jobs:
               -p:PublishTrimmed=true \
               -p:AssemblyName=FMP7CLI \
               -p:PublishSingleFile=true \
+              -p:EnableWindowsTargeting=true \
               $extra_flags \
               -p:PublishDir=bin
 
