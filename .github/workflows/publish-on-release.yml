@@ -7,7 +7,7 @@ on:
 
 jobs:
   publish:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
 
@@ -15,76 +15,77 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
 
-      - name: Setup NuGet
-        uses: nuget/setup-nuget@v2
+      - name: Ensure zip is installed
+        shell: bash
+        run: |
+          set -e
+          if ! command -v zip >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y zip
+          fi
 
-      - name: Restore NuGet packages
-        run: nuget restore FMP7CLI.sln
+      - name: Restore
+        run: dotnet restore
 
       - name: Prepare publish directory
-        shell: pwsh
         run: |
-          if (Test-Path publish) { Remove-Item -Recurse -Force publish }
-          New-Item -ItemType Directory -Force -Path publish | Out-Null
+          rm -rf publish
+          mkdir -p publish
 
-      - name: Build and Package
-        shell: pwsh
+      - name: Publish all runtimes
+        shell: bash
         run: |
-          function Publish-Runtime {
-            param([string]$Platform)
-            
-            Write-Host "=== Publishing $Platform ==="
-            
-            # クリーンアップ
-            if (Test-Path "bin\Release") { Remove-Item -Recurse -Force "bin\Release" }
-            New-Item -ItemType Directory -Force -Path "bin\Release" | Out-Null
-            
-            # ビルド
-            msbuild FMP7CLI.csproj `
-              /p:Configuration=Release `
-              /p:Platform=$Platform `
-              /p:OutputPath="bin\Release\" `
-              /p:DebugType=None
-            
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Build failed for $Platform"
+          set -e
+
+          RP () {
+            echo "=== Publishing $1 ==="
+
+            pushd FMP7CLI >/dev/null
+
+            rm -rf bin
+            mkdir -p bin
+
+            if [[ "$1" != osx-* ]]; then
+              extra_flags="-p:PublishReadyToRun=true"
+            else
+              extra_flags=""
+            fi
+
+            dotnet publish -c Release -r "$1" -f net10.0 \
+              --self-contained true \
+              -p:PublishTrimmed=true \
+              -p:AssemblyName=FMP7CLI \
+              -p:PublishSingleFile=true \
+              $extra_flags \
+              -p:PublishDir=bin
+
+            echo "--- bin contents ($1) ---"
+            ls -la bin
+
+            if [ -z "$(ls -A bin)" ]; then
+              echo "bin is empty for $1"
               exit 1
-            }
-            
-            # 出力ファイルを確認
-            $outputFiles = @(Get-ChildItem -Path "bin\Release\" -File)
-            if ($outputFiles.Count -eq 0) {
-              Write-Host "No output files for $Platform"
-              exit 1
-            }
-            
-            Write-Host "--- Output files ($Platform) ---"
-            $outputFiles | ForEach-Object { Write-Host $_.Name }
-            
-            # 一時フォルダを作成
-            $tempFolder = "temp_${Platform}"
-            if (Test-Path $tempFolder) { Remove-Item -Recurse -Force $tempFolder }
-            New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
-            
-            # bin\Release\*をコピー
-            Copy-Item -Path "bin\Release\*" -Destination $tempFolder -Recurse -Force
-            
-            # Zipファイルを作成
-            $zipPath = "publish\FMP7CLI_${{ github.event.release.tag_name }}_${Platform}.zip"
-            Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -Force
-            Write-Host "Created: $zipPath"
-            
-            # クリーンアップ
-            Remove-Item -Recurse -Force $tempFolder
+            fi
+
+            rm -rf bin/Release/
+
+            (
+              cd bin
+              zip -r "../../publish/FMP7CLI_${{ github.event.release.tag_name }}_${1}.zip" .
+            )
+
+            popd >/dev/null
           }
-          
-          Publish-Runtime "x64"
-          Publish-Runtime "x86"
 
-      - name: Upload assets to Release
+          RP win-x86
+
+      - name: Upload assets to Release (on release)
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: publish/*
